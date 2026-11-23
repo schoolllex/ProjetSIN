@@ -1,13 +1,237 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  ERROR
+}
+
+enum FanMode {
+  AUTO
+  MANUAL
+}
+
+enum CommandStatus {
+  PENDING
+  SENT
+  EXECUTED
+  FAILED
+  CANCELLED
+}
+
+enum CommandType {
+  FAN_ON
+  FAN_OFF
+  SET_MODE
+}
+
+enum AlertType {
+  HIGH_TEMPERATURE
+  DEVICE_OFFLINE
+  SENSOR_ERROR
+  FAN_ERROR
+}
+
+
+model Device {
+  id          String       @id @default(uuid())
+  name        String
+  identifier  String       @unique
+
+  status      DeviceStatus @default(OFFLINE)
+  lastSeen    DateTime?
+  ipAddress   String?
+  firmware    String?
+
+  apiKeyHash  String       @unique
+
+  sensors     TemperatureSensor[]
+  fans        Fan[]
+  commands    DeviceCommand[]
+  alerts      Alert[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model TemperatureSensor {
+  id          String   @id @default(uuid())
+  name        String
+  identifier  String
+
+  deviceId    String
+  device      Device   @relation(
+    fields: [deviceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  lastValue   Float?
+  lastReadAt  DateTime?
+
+  readings    TemperatureReading[]
+
+  createdAt   DateTime @default(now())
+
+  @@unique([deviceId, identifier])
+}
+
+model TemperatureReading {
+  id          String   @id @default(uuid())
+
+  sensorId    String
+  sensor      TemperatureSensor @relation(
+    fields: [sensorId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  value       Float
+  recordedAt  DateTime @default(now())
+
+  @@index([sensorId, recordedAt])
+}
+
+
+model Fan {
+  id             String  @id @default(uuid())
+  name           String
+  identifier     String
+
+  deviceId       String
+  device         Device  @relation(
+    fields: [deviceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  mode           FanMode @default(AUTO)
+
+  desiredState   Boolean @default(false)
+
+  actualState    Boolean @default(false)
+
+  startThreshold Float   @default(28)
+  stopThreshold  Float   @default(25)
+
+  controlSensorId String?
+
+  lastUpdate     DateTime?
+
+  history        FanHistory[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([deviceId, identifier])
+}
+
+model FanHistory {
+  id          String   @id @default(uuid())
+
+  fanId       String
+  fan         Fan      @relation(
+    fields: [fanId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  state       Boolean
+  mode        FanMode
+
+  recordedAt  DateTime @default(now())
+
+  @@index([fanId, recordedAt])
+}
+
+
+model DeviceCommand {
+  id          String        @id @default(uuid())
+
+  deviceId    String
+  device      Device        @relation(
+    fields: [deviceId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  type        CommandType
+  payload     String?
+
+  status      CommandStatus @default(PENDING)
+
+  createdAt   DateTime      @default(now())
+  sentAt      DateTime?
+  executedAt  DateTime?
+  expiresAt   DateTime?
+
+  @@index([deviceId, status])
+}
+
+model Alert {
+  id          String    @id @default(uuid())
+
+  deviceId    String?
+  device      Device?   @relation(
+    fields: [deviceId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  type        AlertType
+  message     String
+
+  resolved    Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  @@index([resolved, createdAt])
+}
+
+model Camera {
+  id          String   @id @default(uuid())
+  name        String
+  identifier  String   @unique
+
+  enabled     Boolean  @default(true)
+  lastSeen    DateTime?
+
+  detections  PersonDetection[]
+
+  createdAt   DateTime @default(now())
+}
+
+model PersonDetection {
+  id          String   @id @default(uuid())
+
+  cameraId    String
+  camera      Camera   @relation(
+    fields: [cameraId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  personCount Int
+  recordedAt  DateTime @default(now())
+
+  @@index([cameraId, recordedAt])
+}
+
+model SystemSettings {
+  id                 Int      @id @default(1)
+
+  measurementInterval Int     @default(2000)
+  offlineTimeout      Int     @default(15)
+
+  autoControlEnabled  Boolean  @default(true)
+
+  updatedAt           DateTime @updatedAt
 }
