@@ -1,62 +1,137 @@
+import { randomBytes } from "node:crypto";
 import { Request, Response } from "express";
 import prismaDB from "../prisma/prismaDB";
-import z, { success } from "zod";
+import { getApiKeyHash, hashApiKey } from "../utils/apiKey";
+import z from "zod";
 
-const createSheme = z.object({
-  name: z.string().min(1).max(191),
-  identifier: z.string().min(1).max(191),
-  status: z.enum(["ONLINE", "OFFLINE", "ERROR"]),
-  ipAddress: z.string().min(1).max(191),
-  firmware: z.string().min(1).max(191)
+const registerScheme = z.object({
+  name: z.string().trim().min(1).max(191),
+  identifier: z.string().trim().min(1).max(191),
+  ipAddress: z.union([z.ipv4(), z.ipv6()]).optional(),
+  firmware: z.enum(["TEMPERATURE", "CAMERA", "RADAR"])
+});
+
+const createScheme = registerScheme.extend({
+  status: z.enum(["ONLINE", "OFFLINE", "ERROR"]).default("OFFLINE")
 });
 
 const deviceIdScheme = z.string().min(5).max(191);
 
 const getDevices = async (req: Request, res: Response) => {
-  try{
-    let devices = await prismaDB.device.findMany();
-    return res.status(200).json({sucess: true, devices});
-  }catch(error){
-    console.error(error);
-    return res.status(500).json({success: false, error});
-  }
-}
-
-const createDevices = async(req: Request, res: Response) => {
-  try{
-    let creation = createSheme.parse(req.body);
-    
-    // SEND REQUEST TO DEVICE TO GET API KEY HASH
-
-    // IF RECEIVED VALID KEY HASH --> PUT IN DB
-  }catch(error){
-    console.error(error);
-    return res.status(500).json({success: false, error});
-  }
-}
-
-const deleteDevice = async(req: Request, res: Response) => {
-  try{
-    let deviceId = deviceIdScheme.parse(req.body);
-    let device = await prismaDB.device.findUnique({
-      where: {
-        id: deviceId
+  const [devices, settings] = await Promise.all([
+    prismaDB.device.findMany({
+      omit: {
+        apiKeyHash: true
+      },
+      orderBy: {
+        name: "asc"
+      },
+      include: {
+        sensors: {
+          select: {
+            lastValue: true, 
+            lastReadAt: true
+          }, orderBy: {
+            lastReadAt: "desc"
+          }, take: 1},
+        camera: {
+          select: {
+            detections: {
+              select: {
+                personCount: true, 
+                recordedAt: true
+              }, orderBy: {
+                recordedAt: "desc"
+              }, take: 1
+            }
+          }
+        },
+        radarReadings: {
+          select: {
+            distance: true, 
+            recordedAt: true
+          }, orderBy: {
+            recordedAt: "desc"
+          }, take: 1
+        }
       }
-    });
-
-    if(!device) return res.status(404).json({success: false, error: "Not found"});
-  
-    await prismaDB.device.delete({
+    }),
+    prismaDB.systemSettings.findUnique({
       where: {
-        id: deviceId
+        id: 1
+      }, 
+      select: {
+        offlineTimeout: true
       }
-    });
+    })
+  ]);
+  const offlineTimeout = settings?.offlineTimeout ?? 15;
 
-    return res.status(200).json({success: true});
-  }catch(error){
-    console.error(error);
-    return res.status(500).json({success: false, error});
-  }
+  return res.status(200).json({success: true, devices, offlineTimeout});
 }
 
-export default {getDevices, createDevices, deleteDevice}
+const createDevice = async (creation: z.infer<typeof createScheme>, lastSeen?: Date) => {
+  const apiKey = randomBytes(32).toString("hex");
+  const {name, identifier, firmware} = creation;
+
+  const device = await prismaDB.device.create({
+    data: {
+      ...creation,
+      lastSeen,
+      apiKeyHash: hashApiKey(apiKey),
+      sensors: firmware === "TEMPERATURE" ? {create: {name, identifier}} : undefined,
+      camera: firmware === "CAMERA" ? {
+        connectOrCreate: {where: {identifier}, create: {name, identifier}}
+      } : undefined
+    },
+    omit: {apiKeyHash: true}
+  });
+
+  return {device, apiKey};
+}
+
+const createDevices = async (req: Request, res: Response) => {
+  const creation = createScheme.parse(req.body);
+  const result = await createDevice(creation);
+
+  return res.status(201).json({success: true, ...result});
+}
+
+const registerDevice = async (req: Request, res: Response) => {
+  const creation = registerScheme.parse(req.body);
+  const lastSeen = new Date();
+
+  if(!req.get("authorization")){
+    const result = await createDevice({...creation, status: "ONLINE"}, lastSeen);
+    return res.status(201).json({success: true, ...result});
+  }
+
+  const apiKeyHash = getApiKeyHash(req);
+  const existing = apiKeyHash && await prismaDB.device.findUnique({
+    where: {identifier: creation.identifier, apiKeyHash},
+    select: {firmware: true}
+  });
+
+  if(!existing) return res.status(401).json({success: false, error: "Invalid API key"});
+  if(existing.firmware !== creation.firmware){
+    return res.status(409).json({success: false, error: "Device type does not match"});
+  }
+
+  const device = await prismaDB.device.update({
+    where: {identifier: creation.identifier, apiKeyHash},
+    data: {name: creation.name, ipAddress: creation.ipAddress, status: "ONLINE", lastSeen},
+    omit: {apiKeyHash: true}
+  });
+
+  return res.status(200).json({success: true, device});
+}
+
+const deleteDevice = async (req: Request, res: Response) => {
+  const deviceId = deviceIdScheme.parse(req.params.id);
+
+  await prismaDB.device.delete({where: {id: deviceId}});
+
+  return res.status(200).json({success: true});
+}
+
+export default {getDevices, createDevices, registerDevice, deleteDevice};

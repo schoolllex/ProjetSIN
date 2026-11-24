@@ -53,6 +53,8 @@ model Device {
   apiKeyHash  String       @unique
 
   sensors     TemperatureSensor[]
+  camera      Camera?
+  radarReadings RadarReading[]
   fans        Fan[]
   commands    DeviceCommand[]
   alerts      Alert[]
@@ -180,6 +182,8 @@ model Camera {
   enabled     Boolean  @default(true)
   lastSeen    DateTime?
 
+  deviceId    String?  @unique
+  device      Device?  @relation(fields: [deviceId],references: [id],onDelete: Cascade)
   detections  PersonDetection[]
 
   createdAt   DateTime @default(now())
@@ -195,6 +199,16 @@ model PersonDetection {
   recordedAt  DateTime @default(now())
 
   @@index([cameraId, recordedAt])
+}
+
+model RadarReading {
+  id          String   @id @default(uuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId],references: [id],onDelete: Cascade)
+  distance    Float
+  recordedAt  DateTime @default(now())
+
+  @@index([deviceId, recordedAt])
 }
 
 model SystemSettings {
