@@ -2,11 +2,21 @@ import { Request, Response } from "express";
 import prismaDB from "../prisma/prismaDB";
 import { getApiKeyHash } from "../utils/apiKey";
 import z from "zod";
+import { FAN_IDENTIFIER } from "./fan.controllers";
 
 const deviceIdScheme = z.string().min(5).max(191);
-const temperatureScheme = z.object({value: z.number()});
-const cameraScheme = z.object({personCount: z.number().int().min(0).max(2147483647)});
-const radarScheme = z.object({distance: z.number().min(0)});
+
+const temperatureScheme = z.object({
+  value: z.number()
+});
+
+const cameraScheme = z.object({
+  personCount: z.number().int().min(0).max(2147483647)
+});
+
+const radarScheme = z.object({
+  distance: z.number().min(0)
+});
 
 const sendValue = async (req: Request, res: Response) => {
   const deviceId = deviceIdScheme.parse(req.params.deviceid);
@@ -56,6 +66,40 @@ const sendValue = async (req: Request, res: Response) => {
           id: true
         }
       });
+
+      const settings = await transaction.systemSettings.findUnique({
+        where: { 
+          id: 1 
+        },
+        select: { 
+          autoControlEnabled: true 
+        }
+      });
+      if (settings?.autoControlEnabled ?? true) {
+        const fan = await transaction.fan.findUnique({
+          where: { 
+            deviceId_identifier: { 
+              deviceId, 
+              identifier: FAN_IDENTIFIER 
+            } 
+          }
+        });
+        if (fan?.mode === "AUTO" && (!fan.controlSensorId || fan.controlSensorId === sensor.id)) {
+          const on = fan.desiredState ? value > fan.stopThreshold : value >= fan.startThreshold;
+          if (on !== fan.desiredState) {
+            await transaction.fan.updateMany({
+              where: { 
+                id: fan.id,
+                mode: "AUTO", 
+                desiredState: fan.desiredState 
+              },
+              data: { 
+                desiredState: on 
+              }
+            });
+          }
+        }
+      }
 
       return transaction.temperatureReading.create({
         data: {

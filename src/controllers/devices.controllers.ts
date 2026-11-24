@@ -81,10 +81,19 @@ const createDevice = async (creation: z.infer<typeof createScheme>, lastSeen?: D
       apiKeyHash: hashApiKey(apiKey),
       sensors: firmware === "TEMPERATURE" ? {create: {name, identifier}} : undefined,
       camera: firmware === "CAMERA" ? {
-        connectOrCreate: {where: {identifier}, create: {name, identifier}}
+        connectOrCreate: {
+          where: {
+            identifier
+          }, create: {
+            name,
+            identifier
+          }
+        }
       } : undefined
     },
-    omit: {apiKeyHash: true}
+    omit: {
+      apiKeyHash: true
+    }
   });
 
   return {device, apiKey};
@@ -107,20 +116,37 @@ const registerDevice = async (req: Request, res: Response) => {
   }
 
   const apiKeyHash = getApiKeyHash(req);
+
   const existing = apiKeyHash && await prismaDB.device.findUnique({
-    where: {identifier: creation.identifier, apiKeyHash},
-    select: {firmware: true}
+    where: {
+      identifier: creation.identifier, 
+      apiKeyHash
+    },
+    select: {
+      firmware: true
+    }
   });
 
   if(!existing) return res.status(401).json({success: false, error: "Invalid API key"});
+
   if(existing.firmware !== creation.firmware){
     return res.status(409).json({success: false, error: "Device type does not match"});
   }
 
   const device = await prismaDB.device.update({
-    where: {identifier: creation.identifier, apiKeyHash},
-    data: {name: creation.name, ipAddress: creation.ipAddress, status: "ONLINE", lastSeen},
-    omit: {apiKeyHash: true}
+    where: {
+      identifier: creation.identifier, 
+      apiKeyHash
+    },
+    data: {
+      name: creation.name, 
+      ipAddress: creation.ipAddress, 
+      status: "ONLINE", 
+      lastSeen
+    },
+    omit: {
+      apiKeyHash: true
+    }
   });
 
   return res.status(200).json({success: true, device});
@@ -129,7 +155,11 @@ const registerDevice = async (req: Request, res: Response) => {
 const deleteDevice = async (req: Request, res: Response) => {
   const deviceId = deviceIdScheme.parse(req.params.id);
 
-  await prismaDB.device.delete({where: {id: deviceId}});
+  await prismaDB.device.delete({
+    where: {
+      id: deviceId
+    }
+  });
 
   return res.status(200).json({success: true});
 }

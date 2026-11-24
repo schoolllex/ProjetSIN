@@ -1,0 +1,12 @@
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!prisma.config.ts
+!prisma/
+!prisma/**
+!src/
+!src/**
+src/generated/
+!public/
+!public/**
