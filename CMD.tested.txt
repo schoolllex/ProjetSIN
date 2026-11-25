@@ -1,0 +1,79 @@
+sudo apt update
+sudo apt install -y ca-certificates curl git libatomic1 xz-utils openssl mariadb-server ufw
+sudo systemctl enable --now mariadb
+(
+  set -e
+  case "$(uname -m)" in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) echo "Architecture à sélectionner sur le site de Node.js"; exit 1 ;;
+  esac
+  version=v24.22.3
+  archive="node-${version}-linux-${arch}.tar.xz"
+  cd "$(mktemp -d)"
+  curl -fSLO "https://nodejs.org/dist/${version}/${archive}"
+  curl -fSLO "https://nodejs.org/dist/${version}/SHASUMS256.txt"
+  awk -v file="$archive" '$2 == file' SHASUMS256.txt | sha256sum -c -
+  sudo tar -xJf "$archive" -C /usr/local --strip-components=1
+)
+node --version
+npm --version
+sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/projetsin
+git clone https://github.com/schoolllex/ProjetSIN.git /opt/projetsin
+cd /opt/projetsin
+(
+  set -e
+  cd /opt/projetsin
+  test ! -e .env || { echo "Le fichier .env existe déjà"; exit 1; }
+  db_password="$(openssl rand -hex 24)"
+
+  sudo mariadb <<SQL
+CREATE DATABASE projetsin CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'projetsin'@'127.0.0.1' IDENTIFIED BY '${db_password}';
+GRANT ALL PRIVILEGES ON projetsin.* TO 'projetsin'@'127.0.0.1';
+SQL
+
+  umask 077
+  cat > .env <<ENV
+PORT=3000
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=projetsin
+DB_USER=projetsin
+DB_PSWD=${db_password}
+DATABASE_URL=mysql://projetsin:${db_password}@127.0.0.1:3306/projetsin
+ENV
+)
+(
+  set -e
+  cd /opt/projetsin
+  npm install --include=dev
+  npm run build
+  ./node_modules/.bin/prisma migrate deploy
+
+  mkdir -p public/vendor
+  curl -fsSL 'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js' \
+    -o public/vendor/chart.umd.min.js
+  sed -i 's|src="https://cdn.jsdelivr.net/npm/chart.js"|src="/vendor/chart.umd.min.js"|' public/index.html
+)
+sudo tee /etc/systemd/system/projetsin.service >/dev/null <<UNIT
+[Unit]
+Description=ThermoVision
+After=mariadb.service
+Requires=mariadb.service
+
+[Service]
+User=$(id -un)
+WorkingDirectory=/opt/projetsin
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/node /opt/projetsin/dist/index.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now projetsin
+sudo systemctl status projetsin --no-pager

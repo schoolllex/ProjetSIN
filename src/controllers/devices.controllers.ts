@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import prismaDB from "../prisma/prismaDB";
 import { getApiKeyHash, hashApiKey } from "../utils/apiKey";
 import z from "zod";
+import { FAN_IDENTIFIER } from "./fan.controllers";
 
 const registerScheme = z.object({
   name: z.string().trim().min(1).max(191),
@@ -27,6 +28,10 @@ const getDevices = async (req: Request, res: Response) => {
         name: "asc"
       },
       include: {
+        fans: {
+          where: { identifier: FAN_IDENTIFIER },
+          select: { mode: true, desiredState: true, actualState: true, lastUpdate: true }
+        },
         sensors: {
           select: {
             lastValue: true, 

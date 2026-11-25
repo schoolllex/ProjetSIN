@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration ThermoVision</title>
+  <script src="/admin/index.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Gestion des ventilateurs</h1>
+
+    <p>
+      <label for="new-device">Capteur à équiper</label>
+      <select id="new-device" disabled></select>
+      <button id="add-fan" type="button" disabled>Ajouter un ventilateur</button>
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Sélection</th>
+          <th scope="col">Capteur associé</th>
+          <th scope="col">Mode</th>
+          <th scope="col">Consigne</th>
+        </tr>
+      </thead>
+      <tbody id="fans"></tbody>
+    </table>
+    <p id="fan-actions">
+      <button type="button" data-mode="on" disabled>Allumer</button>
+      <button type="button" data-mode="off" disabled>Éteindre</button>
+      <button type="button" data-mode="auto" disabled>Passer en automatique</button>
+    </p>
+
+    <form id="threshold-form">
+      <h2>Seuils du mode automatique</h2>
+      <p>
+        <label for="device">Capteur de température</label>
+        <select id="device" disabled></select>
+      </p>
+      <p>
+        <label for="start-threshold">Démarrage (°C)</label>
+        <input id="start-threshold" type="number" step="any" required disabled>
+      </p>
+      <p>
+        <label for="stop-threshold">Arrêt (°C)</label>
+        <input id="stop-threshold" type="number" step="any" required disabled>
+      </p>
+      <button id="save-thresholds" type="submit" disabled>Enregistrer</button>
+    </form>
+
+    <p id="status" role="status"></p>
+    <p><a href="/">Retour au tableau de bord</a></p>
+  </main>
+</body>
+</html>

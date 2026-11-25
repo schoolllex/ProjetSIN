@@ -90,7 +90,9 @@ const sendValue = async (req: Request, res: Response) => {
             await transaction.fan.updateMany({
               where: { 
                 id: fan.id,
-                mode: "AUTO", 
+                mode: "AUTO",
+                startThreshold: fan.startThreshold,
+                stopThreshold: fan.stopThreshold,
                 desiredState: fan.desiredState 
               },
               data: { 
