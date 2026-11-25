@@ -63,7 +63,7 @@ async function loadThresholds() {
   stopInput.value = "";
   if (!deviceSelect.value) return;
 
-  const thresholds = await request(`${fanUrl(deviceSelect.value)}/thresholds`, "Impossible de charger les seuils.");
+  const thresholds = await request(`${fanUrl(deviceSelect.value)}/thresholds`, "Impossible de charger les seuil");
   startInput.value = thresholds.startThreshold;
   stopInput.value = thresholds.stopThreshold;
   thresholdsLoaded = true;
@@ -72,7 +72,7 @@ async function loadThresholds() {
 async function loadDevices() {
   const currentDevice = deviceSelect.value;
   const selection = selectedFans();
-  const { devices } = await request("/devices", "Impossible de charger les capteurs.");
+  const { devices } = await request("/devices", "Impossible de charger les capteurs");
   deviceSelect.replaceChildren();
   newDeviceSelect.replaceChildren();
   fanList.replaceChildren();
@@ -106,7 +106,7 @@ async function loadDevices() {
 }
 
 addButton.addEventListener("click", () => runAction(async () => {
-  await request(fanUrl(newDeviceSelect.value), "Impossible d’ajouter le ventilateur.", "POST");
+  await request(fanUrl(newDeviceSelect.value), "Impossible d’ajouter le ventilateur", "POST");
   await loadDevices();
   statusMessage.textContent = "Ventilateur ajouté.";
 }));
@@ -115,11 +115,11 @@ for (const button of actionButtons) {
   button.addEventListener("click", () => runAction(async () => {
     const mode = button.dataset.mode;
     const settings = mode === "auto" ? { mode: "AUTO" } : { mode: "MANUAL", on: mode === "on" };
-    const result = await request("/devices/fans/settings", "Impossible d’envoyer la commande.", "PATCH", {
+    const result = await request("/devices/fans/settings", "Impossible d’envoyer la commande", "PATCH", {
       deviceIds: selectedFans(),
       settings
     });
-    statusMessage.textContent = `Consigne enregistrée pour ${result.updated} ventilateur(s) sur ${result.requested}.`;
+    statusMessage.textContent = `Consigne enregistrer pour ${result.updated} ventilateurs sur ${result.requested}.`;
     await loadDevices();
   }));
 }
@@ -131,20 +131,20 @@ form.addEventListener("submit", (event) => {
   const startThreshold = startInput.valueAsNumber;
   const stopThreshold = stopInput.valueAsNumber;
   if (!Number.isFinite(startThreshold) || !Number.isFinite(stopThreshold)) {
-    statusMessage.textContent = "Renseigne les deux températures.";
+    statusMessage.textContent = "Renseigne les deux temperatures";
     return;
   }
   if (stopThreshold >= startThreshold) {
-    statusMessage.textContent = "Le seuil d’arrêt doit être inférieur au seuil de démarrage.";
+    statusMessage.textContent = "Le seuil d’arrêt doit être inférieur au seuil";
     return;
   }
 
   runAction(async () => {
-    await request(`${fanUrl(deviceSelect.value)}/thresholds`, "Impossible d’enregistrer les seuils.", "PATCH", {
+    await request(`${fanUrl(deviceSelect.value)}/thresholds`, "Impossible d’enregistrer les seuils", "PATCH", {
       startThreshold,
       stopThreshold
     });
-    statusMessage.textContent = "Seuils enregistrés.";
+    statusMessage.textContent = "Seuil enregistrés";
   });
 });
 
