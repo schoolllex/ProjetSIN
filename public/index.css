@@ -1,9 +1,52 @@
+* {
+  box-sizing: border-box;
+}
+
 .chart-container {
-  position: relative;
-  width: 100%;
-  height: 350px;
-  padding: 20px;
+  width: 90%;
+  height: 80%;
+  padding: 40px;
   box-sizing: border-box;
   background: #ffffff;
   border-radius: 12px;
+  position: relative;
+}
+
+body{
+  margin: 0;
+  background: #ffffff;
+  font-family: Arial, sans-serif;
+}
+
+main {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.thermologo{
+  height: 10%;
+  margin: 1%;
+}
+
+video{
+  position: absolute;
+  background-color: white;
+  width: 100%;
+  height: 100%;
+}
+
+.thermologo-little{
+  position: absolute;
+  z-index: 99;
+  width: 10%;
+  right: 3%;
+  bottom: 5%;
+}
+
+.hidden{
+  visibility: hidden;
 }
